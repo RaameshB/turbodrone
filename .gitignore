@@ -111,6 +111,7 @@ venv.bak/
 .vscode/
 .idea/
 *.iml
+.obsidian/
 
 # OS files
 .DS_Store
@@ -173,3 +174,9 @@ backend/dumps_*/
 dumps_x69/
 dumps_*/
 **/offline_frames/
+
+# SLAM
+slam/data/
+slam/recordings/
+recordings/
+slam/config/drone.yaml

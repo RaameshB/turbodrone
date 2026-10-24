@@ -117,5 +117,23 @@ class WifiCamVideoProtocolTests(unittest.TestCase):
         self.assertIsNone(frame)
 
 
+    def test_rotates_valid_jpeg_ccw_by_default(self):
+        import cv2
+        import numpy as np
+
+        img = np.zeros((32, 16, 3), dtype=np.uint8)
+        img[0, -1] = (0, 255, 0)
+        ok, enc = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 100])
+        self.assertTrue(ok)
+        adapter = WifiCamVideoProtocolAdapter()
+        packet = bytes([1, 1, 1, 8, 0, 0, 0, 0]) + enc.tobytes()
+
+        frame = adapter.handle_payload(packet)
+
+        self.assertIsNotNone(frame)
+        out = cv2.imdecode(np.frombuffer(frame.data, dtype=np.uint8), cv2.IMREAD_COLOR)
+        self.assertEqual(out.shape[:2], (16, 32))
+
+
 if __name__ == "__main__":
     unittest.main()

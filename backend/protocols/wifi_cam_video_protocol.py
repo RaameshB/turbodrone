@@ -8,6 +8,8 @@ import socket
 import threading
 from typing import Final, Optional
 
+import cv2
+import numpy as np
 from models.video_frame import VideoFrame
 from protocols.base_video_protocol import BaseVideoProtocolAdapter
 
@@ -39,9 +41,15 @@ class WifiCamVideoProtocolAdapter(BaseVideoProtocolAdapter):
         video_port: int = DEFAULT_VIDEO_PORT,
         *,
         debug: bool = False,
+        rotate_degrees: Optional[int] = None,
     ) -> None:
         super().__init__(drone_ip, control_port, video_port)
         self.debug = debug
+        if rotate_degrees is None:
+            import os
+
+            rotate_degrees = int(os.getenv("WIFI_CAM_ROTATE_DEGREES", "-90"))
+        self.rotate_degrees = rotate_degrees % 360
         self._running = threading.Event()
         self._rx_thread: Optional[threading.Thread] = None
         self._sock: Optional[socket.socket] = None
@@ -229,8 +237,25 @@ class WifiCamVideoProtocolAdapter(BaseVideoProtocolAdapter):
                 logger.debug("[wifi-cam-video] rejected malformed JPEG frame")
             return None
 
+        if self.rotate_degrees:
+            data = self._rotate_jpeg(data)
         self._frame_counter = (self._frame_counter + 1) & 0xFFFF
         frame = VideoFrame(self._frame_counter, data, format_type="jpeg")
         frame.resolution = resolution  # type: ignore[attr-defined]
         frame.retain = retain  # type: ignore[attr-defined]
         return frame
+
+    def _rotate_jpeg(self, data: bytes) -> bytes:
+        rot_map = {
+            90: cv2.ROTATE_90_CLOCKWISE,
+            180: cv2.ROTATE_180,
+            270: cv2.ROTATE_90_COUNTERCLOCKWISE,
+        }
+        rot = rot_map.get(self.rotate_degrees)
+        if rot is None:
+            return data
+        img = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
+        if img is None:
+            return data
+        ok, enc = cv2.imencode(".jpg", cv2.rotate(img, rot))
+        return enc.tobytes() if ok else data
